@@ -1,4 +1,6 @@
-import scala.sys.process._
+import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport.dockerBaseImage
+
+import scala.sys.process.*
 import scala.sys.process.ProcessLogger
 
 ThisBuild / version := "0.1.0-SNAPSHOT"
@@ -18,7 +20,8 @@ lazy val npmBin =
 
 
 val commonDependencies = Seq(
-  "com.softwaremill.sttp.tapir" %% "tapir-sttp-client" % tapirVersion
+  "com.softwaremill.sttp.tapir" %% "tapir-sttp-client" % tapirVersion,
+  "com.softwaremill.sttp.tapir" %% "tapir-json-zio" % tapirVersion
 )
 
 lazy val common = crossProject(JVMPlatform, JSPlatform)
@@ -55,7 +58,7 @@ lazy val root = project
 
 lazy val server = (project in file("server"))
   .settings(
-    mainClass := Some("com.mlynik.Main"),
+    Compile / mainClass := Some("com.mlynik.Main"),
     name := "scala-laminar-tapir",
     libraryDependencies ++= serverDependencies,
     watchSources ++= (frontend / watchSources).value,
@@ -65,9 +68,12 @@ lazy val server = (project in file("server"))
       .dependsOn(frontend / Compile / fullLinkJS / npmBuild)
       .value,
     reStart / javaOptions += "-Xmx512m",
+    dockerExposedPorts ++= Seq(9000),
+    dockerBaseImage := "amazoncorretto:17-alpine",
+    dockerUpdateLatest := true,
   )
   .dependsOn(common.jvm)
-  .enablePlugins(JavaAppPackaging)
+  .enablePlugins(JavaAppPackaging, AshScriptPlugin, DockerPlugin)
 
 lazy val frontend = (project in file("frontend"))
   .settings(
@@ -80,6 +86,8 @@ lazy val frontend = (project in file("frontend"))
     },
     libraryDependencies ++= Seq(
       "com.softwaremill.sttp.tapir" %%% "tapir-sttp-client" % tapirVersion,
+      "com.softwaremill.sttp.tapir" %%% "tapir-json-zio" % tapirVersion,
+      "dev.zio"                       %%% "zio-json"          % "0.4.2",
       "io.frontroute" %%% "frontroute" % "0.18.1" // Brings in Laminar 16
     ),
     semanticdbEnabled := true,
